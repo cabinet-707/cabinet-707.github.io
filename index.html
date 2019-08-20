@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/MaterialDesign-Webfont/3.8.95/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="app">
+    <v-app>
+        <v-snackbar
+          v-model="snackbar"
+          :color="snckbrColor"
+          top="true"
+        >
+          {{ message }}
+          <v-btn
+            text
+            small
+            @click="snackbar = false"
+          >
+            Закрыть
+          </v-btn>
+        </v-snackbar>
+        <v-dialog
+          v-model="createModal"
+          width="500"
+        >
+          <v-card tile="false">
+            <v-card-title
+              class="headline primary white--text"
+              primary-title
+            >
+              <h5>Запись</h5>
+            </v-card-title>
+            <v-card-text>
+              <v-form ref="form" v-model="valid" class="mt-5" :lazy="'false'">
+                <v-select
+                  v-model="userId"
+                  :items="users"
+                  item-text="Name"
+                  item-value="Id"
+                  :rules="[v => !!v || 'Заполните поле']"
+                  label="Сотрудник"
+                  required
+                ></v-select>
+                <v-select
+                  v-model="bottles"
+                  :items="btItems"
+                  item-text="Id"
+                  item-value="Name"
+                  :rules="[v => !!v || 'Заполните поле']"
+                  label="Количество"
+                  required
+                ></v-select>
+        
+              </v-form>
+            </v-card-text>
+            <v-divider></v-divider>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn
+                color="primary"
+                text
+                @click="createModal = false"
+              >
+                Отмена
+              </v-btn>
+              <v-btn
+                color="primary" 
+                text
+                @click="saveEvent"
+                :loading="loading"
+              >
+                Добавить
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+      <div>
+      <v-content>
+          <v-toolbar color="primary white--text">
+              <v-toolbar-title>Учет воды</v-toolbar-title>
+              <v-spacer></v-spacer>
+              <v-btn icon color="white" @click="createModal = true">
+                  <v-icon color="white--text">mdi-plus</v-icon>
+                </v-btn>
+            </v-toolbar>
+        <v-container fluid>
+                <v-layout fill-height>
+                        <v-flex>
+                          <v-sheet tile="false">
+                            <v-toolbar flat color="white">
+                              <v-btn outlined class="mr-4" @click="setToday">
+                                Сегодня
+                              </v-btn>
+                              <v-btn fab text small @click="prev">
+                                <v-icon>mdi-chevron-left</v-icon>
+                              </v-btn>
+                              <v-btn fab text small @click="next">
+                                <v-icon>mdi-chevron-right</v-icon>
+                              </v-btn>
+                              <v-toolbar-title>{{ title }}</v-toolbar-title>
+                              <v-spacer></v-spacer>
+                              <v-menu bottom right>
+                                <template v-slot:activator="{ on }">
+                                  <v-btn
+                                    outlined
+                                    v-on="on"
+                                  >
+                                    <span>{{ typeToLabel[type] }}</span>
+                                    
+                                  </v-btn>
+                                </template>
+                                <v-list>
+                                  <v-list-item @click="type = 'day'">
+                                    <v-list-item-title>День</v-list-item-title>
+                                  </v-list-item>
+                                  <v-list-item @click="type = 'week'">
+                                    <v-list-item-title>Неделя</v-list-item-title>
+                                  </v-list-item>
+                                  <v-list-item @click="type = 'month'">
+                                    <v-list-item-title>Месяц</v-list-item-title>
+                                  </v-list-item>
+                                </v-list>
+                              </v-menu>
+                            </v-toolbar>
+                          </v-sheet>
+                          <v-sheet height="637" tile="false">
+                            <v-calendar
+                              ref="calendar"
+                              v-model="focus"
+                              color="primary"
+                              :events="events"
+                              :event-color="getEventColor"
+                              :event-margin-bottom="3"
+                              :now="today"
+                              :type="type"
+                              @click:event="showEvent"
+                              @click:more="viewDay"
+                              @click:date="viewDay"
+                              @change="updateRange"
+                            ></v-calendar>
+                            <v-menu
+                              v-model="selectedOpen"
+                              :close-on-content-click="false"
+                              :activator="selectedElement"
+                              full-width
+                              offset-xl
+                            >
+                              <v-card
+                                color="grey lighten-4"
+                                min-width="350px"
+                                flat
+                              >
+                                <v-toolbar
+                                  :color="selectedEvent.color"
+                                  dark
+                                >
+                                  <v-btn icon>
+                                    <v-icon>edit</v-icon>
+                                  </v-btn>
+                                  <v-toolbar-title v-html="selectedEvent.name"></v-toolbar-title>
+                                  <v-spacer></v-spacer>
+                                  <v-btn icon>
+                                    <v-icon>favorite</v-icon>
+                                  </v-btn>
+                                  <v-btn icon>
+                                    <v-icon>more_vert</v-icon>
+                                  </v-btn>
+                                </v-toolbar>
+                                <v-card-text>
+                                  <span v-html="selectedEvent.details"></span>
+                                </v-card-text>
+                                <v-card-actions>
+                                  <v-btn
+                                    text
+                                    color="secondary"
+                                    @click="selectedOpen = false"
+                                  >
+                                    Cancel
+                                  </v-btn>
+                                </v-card-actions>
+                              </v-card>
+                            </v-menu>
+                          </v-sheet>
+                        </v-flex>
+                      </v-layout>
+        </v-container>
+      </v-content>
+    </div>
+    </v-app>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/moment"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+      data: () => ({
+        focus: null,
+        type: 'month',
+        createModal: false,
+        loading: false,
+        snackbar: false,
+        apiUrl: 'http://www.707.somee.com/Home',
+        apiDomen: 'http://localhost:28880',
+        snckbrColor: 'success',
+        message: 'Запись успешно добавлена',
+        users: null,
+        valid: false,
+        userId: null,
+        bottles: null,
+        btItems: [
+          {Id: "1", Name: "1"},
+          {Id: "2", Name: "2"}
+        ],
+        typeToLabel: {
+         month: 'Месяц',
+         week: 'Неделя',
+         day: 'День',
+      },
+        start: null,
+        end: null,
+        selectedEvent: {},
+        selectedElement: null,
+        selectedOpen: false,
+        events: [],
+    }),
+    computed: {
+      title () {
+        const { start, end } = this
+        if (!start || !end) {
+          return ''
+        }
+
+        const startMonth = this.monthFormatter(start)
+        const endMonth = this.monthFormatter(end)
+        const suffixMonth = startMonth === endMonth ? '' : endMonth
+
+        const startYear = start.year
+        const endYear = end.year
+        const suffixYear = startYear === endYear ? '' : endYear
+
+        const startDay = start.day + this.nth(start.day)
+        const endDay = end.day + this.nth(end.day)
+
+        switch (this.type) {
+          case 'month':
+            return `${startMonth} ${startYear}`
+          case 'week':
+          case '4day':
+            return `${startMonth} ${startDay} ${startYear} - ${suffixMonth} ${endDay} ${suffixYear}`
+          case 'day':
+            return `${startMonth} ${startDay} ${startYear}`
+        }
+        return ''
+      },
+      monthFormatter () {
+        return this.$refs.calendar.getFormatter({
+          timeZone: 'UTC', month: 'long',
+        })
+      },
+    },
+    created () {
+      this.setToday()
+      this.getUsers()
+      this.getEvents()
+    },
+    methods: {
+      getUsers () {
+        vm = this
+        axios.get(this.apiUrl + '/LoadUsers')
+          .then(function (response) {
+            vm.users = response.data
+          })
+      },
+      getEvents () {
+        vm = this
+        axios.get(this.apiUrl + '/LoadEvents')
+          .then(function (response) { 
+            data = response.data
+            for(var i = 0; i < data.length; i++) {
+              var dateTime = moment(data[i].CreatedDate).format("YYYY-MM-DD") // HH:mm:ss Если нужно будет указывать время
+              var name = data[i].User.Name + " &#8226; " + data[i].Bottles
+              vm.events.push({ name: name, start: dateTime , color: "blue"})
+            }
+          })
+      },
+      saveEvent () {
+        // save an event
+        if (this.$refs.form.validate()) {
+          console.log(this.employeeId + '-' + this.bottleCount)
+          vm = this
+          this.loading = true
+          axios.get(this.apiUrl + '/CreateEv?userId=' + vm.userId + "&bottles=" + vm.bottles)
+          .then(function (response) {
+            console.log(response);
+            vm.createModal = false
+            vm.snackbar = true
+            vm.loading = false
+            vm.getEvents()
+          })
+          .catch(function (error) {
+            console.log(error);
+          })
+        }
+      },
+      viewDay ({ date }) {
+        this.focus = date
+        this.type = 'day'
+      },
+      getEventColor (event) {
+        return event.color
+      },
+      setToday () {
+        var myDate = new Date();
+        var month = ('0' + (myDate.getMonth() + 1)).slice(-2);
+        var date = ('0' + myDate.getDate()).slice(-2);
+        var year = myDate.getFullYear();
+        var dateTime = year + '-' + month + '-' + date;
+        this.focus = dateTime
+      },
+      prev () {
+        this.$refs.calendar.prev()
+      },
+      next () {
+        this.$refs.calendar.next()
+      },
+      showEvent ({ nativeEvent, event }) {
+        const open = () => {
+          this.selectedEvent = event
+          this.selectedElement = nativeEvent.target
+          setTimeout(() => this.selectedOpen = true, 10)
+        }
+
+        if (this.selectedOpen) {
+          this.selectedOpen = false
+          setTimeout(open, 10)
+        } else {
+          open()
+        }
+
+        nativeEvent.stopPropagation()
+      },
+      updateRange ({ start, end }) {
+        // You could load events from an outside source (like database) now that we have the start and end dates on the calendar
+        this.start = start
+        this.end = end
+      },
+      nth (d) {
+        return d > 3 && d < 21
+          ? 'th'
+          : ['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][d % 10]
+      },
+    }   
+    })
+  </script>
+</body>
+</html>
